@@ -1,10 +1,22 @@
-const userAuth = (req, res, next) => {
-  const getToken = "xyz";
-  const isToken = req.query.name === getToken;
-  if (!isToken) {
-    return res.status(401).send("User unauthorized!!");
-  }
-  next();
-};
+const jwt = require("jsonwebtoken");
+const User = require("../models/user");
 
+const userAuth = async (req, res, next) => {
+  try {
+    const { token } = req.cookies;
+    if (!token) {
+      throw new Error("invalid token");
+    }
+    const decodedMessage = await jwt.verify(token, "secret_token");
+    const { _id } = decodedMessage;
+    const user = await User.findOne({ _id: _id });
+    if (!user) {
+      throw new Error("User not found");
+    }
+    req.user = user;
+    next();
+  } catch (err) {
+    res.status(400).send("ERROR: " + err.message);
+  }
+};
 module.exports = { userAuth };

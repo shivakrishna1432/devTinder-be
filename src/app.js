@@ -3,8 +3,12 @@ const app = express();
 const connectDB = require("./config/database");
 const User = require("./models/user");
 const bcrypt = require("bcrypt");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
+const { userAuth } = require("./middlewares/userAuth");
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.post("/signup", async (req, res) => {
   const { firstName, lastName, email, password } = req.body;
@@ -31,8 +35,10 @@ app.post("/login", async (req, res) => {
     if (!user) {
       throw new Error("invalid email or password");
     }
-    const isPasswordMatched = await bcrypt.compare(password, user.password);
+    const isPasswordMatched = await user.compareUserPassword(password);
     if (isPasswordMatched) {
+      const token = await user.getJwt();
+      res.cookie("token", token);
       res.send("login Successful!!!");
     } else {
       throw new Error("Invalid email or password");
@@ -42,7 +48,16 @@ app.post("/login", async (req, res) => {
   }
 });
 
-app.get("/user", async (req, res) => {
+app.get("/profile", userAuth, async (req, res) => {
+  try {
+    const loggedInUser = req.user;
+    res.send(loggedInUser);
+  } catch (err) {
+    res.status(400).send("ERROR : " + err.message);
+  }
+});
+
+app.get("/feed", userAuth, async (req, res) => {
   try {
     const user = await User.find({});
     if (user.length === 0) {
@@ -55,9 +70,8 @@ app.get("/user", async (req, res) => {
   }
 });
 
-app.get("/user", async (req, res) => {
+app.get("/user", userAuth, async (req, res) => {
   const emailId = req.body.emailId;
-  console.log(emailId);
   try {
     const user = await User.findOne({ email: emailId });
     if (!user) {
@@ -70,7 +84,7 @@ app.get("/user", async (req, res) => {
   }
 });
 
-app.delete("/user", async (req, res) => {
+app.delete("/user", userAuth, async (req, res) => {
   const userId = req.body.userId;
   try {
     await User.findByIdAndDelete({ _id: userId });
@@ -80,7 +94,7 @@ app.delete("/user", async (req, res) => {
   }
 });
 
-app.patch("/user", async (req, res) => {
+app.patch("/user", userAuth, async (req, res) => {
   const emailId = req.body.email;
   const user = req.body;
   try {
